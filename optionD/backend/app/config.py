@@ -19,6 +19,7 @@ _s = get_settings()
 AWS_ACCOUNT = _s.aws_account
 AWS_REGION = _s.aws_region
 APPS_BUCKET = _s.apps_bucket
+ECS_CLUSTER = _s.ecs_cluster
 OBS_MCP_ENDPOINT = _s.obs_mcp_endpoint
 APPS_DOMAIN = _s.apps_domain
 OWNER_EMAIL_DOMAIN = _s.owner_email_domain

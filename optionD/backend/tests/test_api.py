@@ -70,7 +70,7 @@ def test_create_submission_returns_artifacts_and_appears_in_queue():
     r = client.post("/api/submissions", json=_input(appName="Queue Test"), headers=EMPLOYEE)
     assert r.status_code == 201
     detail = r.json()
-    assert len(detail["artifacts"]) == 4
+    assert len(detail["artifacts"]) == 5
     sid = detail["submission"]["id"]
     queue = client.get("/api/submissions").json()
     assert any(s["id"] == sid for s in queue)
@@ -201,7 +201,7 @@ def test_finish_provisioning_transitions_to_live():
     store.patch(sid, status=Status.provisioning)
     _finish_provisioning(store, sid)
     after = store.get(sid)
-    assert after.status == Status.live and after.live_url.endswith(".apps.alice.io")
+    assert after.status == Status.live and after.live_url.endswith(".apps.internal")
     # no-op when not in provisioning
     _finish_provisioning(store, sid)
     assert store.get(sid).status == Status.live

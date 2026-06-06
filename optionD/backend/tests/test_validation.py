@@ -39,3 +39,10 @@ def test_human_in_loop_triggers_at_budget_threshold(sample_submission):
     assert build_manifest(sample_submission)["guardrails"]["humanInLoop"] is True
     sample_submission.budget = 200
     assert build_manifest(sample_submission)["guardrails"]["humanInLoop"] is False
+
+
+def test_manifest_runtime_is_fargate_with_network_block(sample_submission):
+    m = build_manifest(sample_submission)
+    assert m["runtime"]["type"] == "ecs-fargate"
+    assert m["network"]["internetGatewayRoute"] is False
+    assert "ai-gateway" in m["network"]["egressAllowlist"]

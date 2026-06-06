@@ -128,6 +128,21 @@ export interface LoginResponse {
   user: User;
 }
 
+// ----- GitHub App connect -----
+export interface RepoRef {
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+}
+
+export interface GithubStatus {
+  connected: boolean;
+  account: string | null;
+}
+
+// scan accepts exactly one of these
+export type ScanArg = { repoUrl: string } | { repoFullName: string };
+
 // tweak state
 export type Look = "soft" | "crisp" | "playful";
 export type Density = "cozy" | "compact";
@@ -140,5 +155,4 @@ export interface Tweaks {
   contrast: Contrast;
   density: Density;
   showSecrets: boolean;
-  showPeek: boolean;
 }

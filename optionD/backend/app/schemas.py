@@ -90,7 +90,10 @@ class RepoScan(CamelModel):
 
 
 class ScanRequest(CamelModel):
-    repo_url: str = Field(min_length=1)
+    # Exactly one of these. repo_url = public path; repo_full_name = a connected
+    # (possibly private) repo read via the GitHub App installation.
+    repo_url: str | None = None
+    repo_full_name: str | None = None
 
 
 # ----------------------------------------------------------------------------- submission

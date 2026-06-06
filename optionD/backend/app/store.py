@@ -9,6 +9,7 @@ from __future__ import annotations
 from threading import RLock
 from typing import Protocol
 
+from app.github import Connection
 from app.scanner import slugify, synthetic_scan
 from app.schemas import SecretSlot, Status, Submission
 
@@ -21,12 +22,20 @@ class StoreProtocol(Protocol):
     def get(self, sub_id: str) -> Submission | None: ...
     def add(self, sub: Submission) -> Submission: ...
     def patch(self, sub_id: str, **changes) -> Submission | None: ...
+    # GitHub connection (single, for the demo) + CSRF state
+    def set_connection(self, conn: Connection) -> None: ...
+    def get_connection(self) -> Connection | None: ...
+    def clear_connection(self) -> None: ...
+    def add_state(self, state: str) -> None: ...
+    def take_state(self, state: str) -> bool: ...
 
 
 class SubmissionStore:
     def __init__(self) -> None:
         self._items: dict[str, Submission] = {}
         self._lock = RLock()
+        self._connection: Connection | None = None
+        self._csrf: set[str] = set()
         for sub in _seed():
             self._items[sub.id] = sub
 
@@ -54,6 +63,31 @@ class SubmissionStore:
             updated = cur.model_copy(update={k: v for k, v in changes.items() if v is not None})
             self._items[sub_id] = updated
             return updated
+
+    # --- GitHub connection (single) + CSRF state ---
+    def set_connection(self, conn: Connection) -> None:
+        with self._lock:
+            self._connection = conn
+
+    def get_connection(self) -> Connection | None:
+        with self._lock:
+            return self._connection
+
+    def clear_connection(self) -> None:
+        with self._lock:
+            self._connection = None
+
+    def add_state(self, state: str) -> None:
+        with self._lock:
+            self._csrf.add(state)
+
+    def take_state(self, state: str) -> bool:
+        """Consume a CSRF state once; False if unknown."""
+        with self._lock:
+            if state in self._csrf:
+                self._csrf.discard(state)
+                return True
+            return False
 
 
 def _mk(over: dict) -> Submission:
@@ -108,7 +142,7 @@ def _seed() -> list[Submission]:
                 budget=80,
                 status="live",
                 submitted_at="3 days ago",
-                live_url="morning-brief.apps.alice.io",
+                live_url="morning-brief.apps.internal",
                 spend_this_month=41,
             )
         ),
@@ -124,7 +158,7 @@ def _seed() -> list[Submission]:
                 budget=600,
                 status="live",
                 submitted_at="1 week ago",
-                live_url="persona-lab.apps.alice.io",
+                live_url="persona-lab.apps.internal",
                 spend_this_month=312,
             )
         ),

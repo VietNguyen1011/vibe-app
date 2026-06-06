@@ -4,30 +4,69 @@ that must hold no matter what a tenant submits."""
 import json
 
 from app.artifacts import (
+    deploy_config,
     generate_artifacts,
     permissions_policy,
     secrets_bootstrap,
+    security_groups,
     trust_policy,
 )
 from app.catalog import model_by_id
+from app.compute import task_size
 
 
-def test_generates_four_named_artifacts(sample_submission):
+def test_generates_five_named_artifacts(sample_submission):
     files = {a.file for a in generate_artifacts(sample_submission)}
     assert files == {
         "iam-trust-policy.json",
         "iam-permissions.json",
+        "security-groups.json",
         "deploy.yaml",
         "secrets-bootstrap.sh",
     }
 
 
-def test_trust_policy_scoped_to_this_app_only(sample_submission):
+def test_trust_policy_assumable_only_by_ecs_tasks(sample_submission):
     pol = json.loads(trust_policy(sample_submission))
     stmt = pol["Statement"][0]
-    assert stmt["Principal"]["Service"] == "tasks.apprunner.amazonaws.com"
+    assert stmt["Principal"]["Service"] == "ecs-tasks.amazonaws.com"
     src_arn = stmt["Condition"]["ArnLike"]["aws:SourceArn"]
-    assert f"service/{sample_submission.slug}/*" in src_arn
+    assert ":task/" in src_arn and "vibeapp-apps" in src_arn
+
+
+def test_security_groups_no_public_inbound_no_open_egress(sample_submission):
+    sg = json.loads(security_groups(sample_submission))
+    task = sg["taskSg"]
+    # Inbound only from the ALB SG, on the app port — never the open internet.
+    assert task["ingress"] == [
+        {"from": "albSg", "protocol": "tcp", "port": sample_submission.repo.port}
+    ]
+    assert all(rule["from"] != "0.0.0.0/0" for rule in task["ingress"])
+    # Egress is deny-by-default with an explicit allowlist — never 0.0.0.0/0.
+    assert task["egressDefault"] == "deny"
+    assert all(rule["to"] != "0.0.0.0/0" for rule in task["egress"])
+    assert {rule["to"] for rule in task["egress"]} == {
+        "egress-proxy-sg",
+        "ai-gateway-sg",
+        "rds-proxy-sg",
+    }
+    # The structural invariant: app subnet has no route to an internet gateway.
+    assert task["internetGatewayRoute"] is False
+
+
+def test_alb_is_internal(sample_submission):
+    sg = json.loads(security_groups(sample_submission))
+    assert sg["albSg"]["scheme"] == "internal"
+
+
+def test_deploy_is_ecs_fargate_with_block_sizing_and_circuit_breaker(sample_submission):
+    y = deploy_config(sample_submission)
+    assert "type: ecs-fargate" in y
+    size = task_size(sample_submission.repo.runtime)
+    assert f"cpu: {size['cpu']}" in y and f"memory: {size['memory']}" in y
+    assert "deploymentCircuitBreaker" in y and "rollback: true" in y
+    assert "securityGroups: ./security-groups.json" in y
+    assert "apprunner" not in y
 
 
 def test_permissions_pin_exactly_one_bedrock_model(sample_submission):

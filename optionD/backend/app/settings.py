@@ -21,10 +21,11 @@ class Settings(BaseSettings):
     aws_account: str = "412755901388"
     aws_region: str = "us-east-1"
     apps_bucket: str = "alice-internal-apps"
+    ecs_cluster: str = "vibeapp-apps"
 
     # Platform endpoints + policy.
     obs_mcp_endpoint: str = "https://obs.platform.alice.io/mcp"
-    apps_domain: str = "apps.alice.io"
+    apps_domain: str = "apps.internal"
     owner_email_domain: str = "alice.io"
     human_in_loop_budget_usd: int = 500
     platform_secret_rotation_days: int = 90
@@ -33,6 +34,17 @@ class Settings(BaseSettings):
     # and enables private repos. Empty = unauthenticated public scans.
     github_token: str = ""
     scan_timeout_seconds: float = 8.0
+
+    # GitHub App connect flow. All empty -> the dev FakeGitHubClient (offline).
+    # Set these (App ID + PEM private key + OAuth client creds) to talk to real GitHub.
+    github_app_id: str = ""
+    github_app_private_key: str = ""
+    github_client_id: str = ""
+    github_client_secret: str = ""
+    github_app_slug: str = "vibeapp"
+    # Relative by default so it works through the Vite dev proxy and same-origin in
+    # prod. For real GitHub, set this to the absolute public URL registered in the App.
+    github_callback_url: str = "/api/github/callback"
 
     # Behavior.
     provision_seconds: float = 2.6

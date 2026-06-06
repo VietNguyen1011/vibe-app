@@ -11,7 +11,6 @@ export const TWEAK_DEFAULTS: Tweaks = {
   contrast: "normal",
   density: "cozy",
   showSecrets: true,
-  showPeek: true,
 };
 
 export const ACCENTS = ["#6c5ce7", "#2f6df0", "#10a36b", "#e8603c", "#d6418f"];
@@ -233,7 +232,6 @@ export function TweaksPanel({ t, setTweak }: { t: Tweaks; setTweak: SetTweak }) 
           <Segmented label="Density" value={t.density} options={["cozy", "compact"] as const} onChange={(v) => setTweak("density", v)} />
           <Section label="Flow steps" />
           <Toggle label="Keys & connections" value={t.showSecrets} onChange={(v) => setTweak("showSecrets", v)} />
-          <Toggle label="Peek under the hood" value={t.showPeek} onChange={(v) => setTweak("showPeek", v)} />
         </div>
       )}
     </>

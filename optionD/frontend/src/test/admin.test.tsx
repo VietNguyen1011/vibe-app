@@ -27,7 +27,11 @@ const detail = (s: Submission): SubmissionDetail => ({
   cost: { monthly: 104, perCall: 0.01, callsPerDay: 240 },
 });
 
-const LIST = [sub("review-app", "review"), sub("live-app", "live", { liveUrl: "live-app.apps.alice.io" })];
+const LIST = [
+  sub("review-app", "review"),
+  sub("live-app", "live", { liveUrl: "live-app.apps.internal" }),
+  sub("prov-app", "provisioning"),
+];
 
 function mockFetch(approve = vi.fn()) {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -80,6 +84,13 @@ describe("AdminConsole", () => {
     renderAdmin();
     fireEvent.click(await screen.findByRole("button", { name: /live-app/ }));
     expect(await screen.findByRole("button", { name: /Retire app/ })).toBeInTheDocument();
+  });
+
+  it("shows the ECS Fargate provisioning state in the action bar", async () => {
+    mockFetch();
+    renderAdmin();
+    fireEvent.click(await screen.findByRole("button", { name: /prov-app/ }));
+    expect(await screen.findByText(/Provisioning on AWS ECS Fargate/)).toBeInTheDocument();
   });
 
   it("requests changes on a review app and toasts", async () => {

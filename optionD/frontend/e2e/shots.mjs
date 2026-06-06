@@ -39,9 +39,9 @@ try {
 
   await page.getByRole("button", { name: /Submit for launch/ }).click();
   await page.getByText("You're all set!").waitFor({ timeout: 8000 });
-  await page.getByRole("button", { name: /Peek under the hood/ }).click();
+  await page.getByText(/What we handled for you/i).waitFor({ timeout: 4000 });
   await pause(page, 900);
-  await shot(page, "05-done-peek");
+  await shot(page, "05-done-summary");
 
   // Admin: artifacts + approve
   await page.getByRole("button", { name: /Sign out/ }).click();

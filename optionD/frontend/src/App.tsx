@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "./components/Icon";
 import { Toast } from "./components/Misc";
 import { TweaksPanel, useTweaks } from "./components/TweaksPanel";
@@ -29,6 +30,16 @@ export default function App() {
 
   const logout = useLogout();
   const { data: models = [] } = useModels();
+  const qc = useQueryClient();
+
+  // Returning from the GitHub callback: refresh connection status, drop the marker.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("github") === "connected") {
+      qc.invalidateQueries({ queryKey: ["github"] });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [qc]);
 
   function handleLogin(res: LoginResponse) {
     setUser(res.user);

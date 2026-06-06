@@ -10,9 +10,12 @@ import {
 
 import { request, tokenStore } from "./client";
 import type {
+  GithubStatus,
   LoginResponse,
   ModelOption,
+  RepoRef,
   RepoScan,
+  ScanArg,
   Submission,
   SubmissionDetail,
   SubmissionInput,
@@ -64,9 +67,38 @@ export const useMe = (enabled: boolean) =>
 
 export const useScan = () =>
   useMutation({
-    mutationFn: (repoUrl: string) =>
-      request<RepoScan>("/scan", { method: "POST", body: JSON.stringify({ repoUrl }) }),
+    // Accepts a public { repoUrl } or a connected { repoFullName }.
+    mutationFn: (arg: ScanArg) =>
+      request<RepoScan>("/scan", { method: "POST", body: JSON.stringify(arg) }),
   });
+
+// ----- GitHub App connect -----
+export const githubStatusQuery = queryOptions({
+  queryKey: ["github", "status"],
+  queryFn: () => request<GithubStatus>("/github/status"),
+});
+
+export const useGithubStatus = () => useQuery(githubStatusQuery);
+
+export const useGithubRepos = (enabled: boolean) =>
+  useQuery({
+    queryKey: ["github", "repos"],
+    queryFn: () => request<RepoRef[]>("/github/repos"),
+    enabled,
+  });
+
+export const useGithubConnect = () =>
+  useMutation({
+    mutationFn: () => request<{ authorizeUrl: string }>("/github/connect"),
+  });
+
+export function useDisconnectGithub() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request<void>("/github/disconnect", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["github"] }),
+  });
+}
 
 export const useValidate = () =>
   useMutation({

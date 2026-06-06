@@ -60,4 +60,13 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Test User/ }));
     await waitFor(() => expect(screen.getByRole("group", { name: "Switch view" })).toBeInTheDocument());
   });
+
+  it("clears the ?github=connected marker from the URL after the callback", async () => {
+    window.history.replaceState({}, "", "/?github=connected");
+    tokenStore.set("tok");
+    mockFetch("employee");
+    renderApp();
+    expect(await screen.findByText("Let's get your app live.")).toBeInTheDocument();
+    await waitFor(() => expect(window.location.search).toBe(""));
+  });
 });

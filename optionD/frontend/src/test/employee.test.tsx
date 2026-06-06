@@ -21,7 +21,10 @@ const DETAIL: SubmissionDetail = {
     status: "review", submittedAt: "just now", spendThisMonth: 0 },
   manifest: { kind: "AppDeployment" },
   artifacts: [{ file: "iam-trust-policy.json", lang: "json", body: '{"a":1}', label: "IAM trust", note: "n" }],
-  validation: [{ id: "repo", ok: true, warn: false, friendly: "We can reach your repo", technical: "t" }],
+  validation: [
+    { id: "repo", ok: true, warn: false, friendly: "We can reach your repo", technical: "t" },
+    { id: "s3", ok: true, warn: true, friendly: "We scoped your app to its own private space", technical: "t" },
+  ],
   cost: { monthly: 104, perCall: 0.01, callsPerDay: 240 },
 };
 
@@ -29,11 +32,20 @@ function mockFetch() {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     const json = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+    if (url.endsWith("/api/github/status")) return json({ connected: false, account: null });
     if (url.endsWith("/api/scan")) return json(REPO);
     if (url.endsWith("/api/validate")) return json({ validation: DETAIL.validation, cost: DETAIL.cost });
     if (url.endsWith("/api/submissions") && init?.method === "POST") return json(DETAIL, 201);
     return json({});
   }));
+}
+
+// The wizard tests use the "paste a public URL" fallback; the GitHub-connect path
+// has its own suite in github.test.tsx.
+async function scanViaPaste(url: string) {
+  fireEvent.click(await screen.findByRole("button", { name: /paste a public URL/ }));
+  fireEvent.change(screen.getByPlaceholderText(/github.com/), { target: { value: url } });
+  fireEvent.click(screen.getByRole("button", { name: /^Scan$/ }));
 }
 
 function renderFlow(onSubmit = vi.fn()) {
@@ -48,14 +60,13 @@ function renderFlow(onSubmit = vi.fn()) {
 afterEach(() => vi.restoreAllMocks());
 
 describe("EmployeeFlow", () => {
-  it("runs the full wizard: scan → details → safety → done → peek", async () => {
+  it("runs the full wizard: scan → details → safety → done → summary", async () => {
     mockFetch();
     const onSubmit = vi.fn();
     renderFlow(onSubmit);
 
-    // Connect
-    fireEvent.change(screen.getByPlaceholderText(/github.com/), { target: { value: "https://github.com/o/r" } });
-    fireEvent.click(screen.getByRole("button", { name: /Scan my repo/ }));
+    // Connect (via the paste fallback)
+    await scanViaPaste("https://github.com/o/r");
 
     // Details (after scan + 700ms settle)
     expect(await screen.findByText("Here's what we found.", {}, { timeout: 4000 })).toBeInTheDocument();
@@ -72,9 +83,10 @@ describe("EmployeeFlow", () => {
     expect(await screen.findByText("You're all set!", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(onSubmit).toHaveBeenCalled();
 
-    // Peek under the hood reveals artifacts
-    fireEvent.click(screen.getByRole("button", { name: /Peek under the hood/ }));
-    expect(await screen.findByText("iam-trust-policy.json")).toBeInTheDocument();
+    // Employee sees a plain-language summary — no raw technical artifacts.
+    expect(await screen.findByText(/What we handled for you/i)).toBeInTheDocument();
+    expect(screen.getByText(/Private space just for your app/i)).toBeInTheDocument();
+    expect(screen.queryByText("iam-trust-policy.json")).not.toBeInTheDocument();
 
     // Submit another resets to Connect
     fireEvent.click(screen.getByRole("button", { name: /Submit another app/ }));
@@ -91,13 +103,13 @@ describe("EmployeeFlow", () => {
     };
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
+      if (url.endsWith("/api/github/status")) return json({ connected: false, account: null });
       if (url.endsWith("/api/scan")) return json(repoWithSecrets);
       if (url.endsWith("/api/validate")) return json({ validation: DETAIL.validation, cost: DETAIL.cost });
       return json({});
     }));
     renderFlow();
-    fireEvent.change(screen.getByPlaceholderText(/github.com/), { target: { value: "https://github.com/o/r" } });
-    fireEvent.click(screen.getByRole("button", { name: /Scan my repo/ }));
+    await scanViaPaste("https://github.com/o/r");
     expect(await screen.findByText("Here's what we found.", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByText("Keys & connections")).toBeInTheDocument();
     expect(screen.getByText(/Handled for you/)).toBeInTheDocument(); // platform-managed
@@ -107,11 +119,42 @@ describe("EmployeeFlow", () => {
   });
 
   it("surfaces a scan error", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () =>
-      new Response(JSON.stringify({ error: "not_found", detail: "nope" }), { status: 404 })));
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/api/github/status"))
+        return new Response(JSON.stringify({ connected: false, account: null }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "not_found", detail: "nope" }), { status: 404 });
+    }));
     renderFlow();
-    fireEvent.change(screen.getByPlaceholderText(/github.com/), { target: { value: "https://github.com/o/r" } });
-    fireEvent.click(screen.getByRole("button", { name: /Scan my repo/ }));
+    await scanViaPaste("https://github.com/o/r");
     expect(await screen.findByRole("alert")).toHaveTextContent("nope");
+  });
+
+  it("shows the scanning overlay while a scan is in flight", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.endsWith("/api/github/status"))
+        return Promise.resolve(new Response(JSON.stringify({ connected: false, account: null }), { status: 200, headers: { "Content-Type": "application/json" } }));
+      if (url.endsWith("/api/scan")) return new Promise(() => {}); // never resolves — keeps it pending
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }));
+    renderFlow();
+    await scanViaPaste("https://github.com/o/r");
+    expect(await screen.findByText(/Reading your code/i)).toBeInTheDocument();
+  });
+
+  it("lands on the safety step even when validation fails to load", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
+      if (url.endsWith("/api/github/status")) return json({ connected: false, account: null });
+      if (url.endsWith("/api/scan")) return json(REPO);
+      if (url.endsWith("/api/validate")) return json({ error: "server_error", detail: "down" }, 500);
+      return json({});
+    }));
+    renderFlow();
+    await scanViaPaste("https://github.com/o/r");
+    expect(await screen.findByText("Here's what we found.", {}, { timeout: 4000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/Sorts incoming reports/), { target: { value: "does a thing" } });
+    fireEvent.click(screen.getByRole("button", { name: /Run safety check/ }));
+    // validate rejected → goSafety's catch ran (setChecks([])) without crashing the flow.
+    expect(await screen.findByText("A quick safety check.", {}, { timeout: 4000 })).toBeInTheDocument();
   });
 });

@@ -24,6 +24,16 @@ describe("useTweaks", () => {
     const { result } = renderHook(() => useTweaks());
     expect(result.current[0].look).toBe(TWEAK_DEFAULTS.look);
   });
+
+  it("tolerates a localStorage that refuses writes", () => {
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    const { result } = renderHook(() => useTweaks());
+    // The persist effect swallows the write error; state still updates.
+    act(() => result.current[1]("dark", true));
+    expect(result.current[0].dark).toBe(true);
+  });
 });
 
 describe("TweaksPanel", () => {

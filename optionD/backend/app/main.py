@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.errors import install_error_handlers
-from app.routers import auth, catalog, health, submissions
+from app.routers import auth, catalog, github, health, submissions
 from app.settings import get_settings
 from app.store import SubmissionStore
 
@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     install_error_handlers(app)
-    for module in (health, auth, catalog, submissions):
+    for module in (health, auth, catalog, github, submissions):
         app.include_router(module.router)
     return app
 

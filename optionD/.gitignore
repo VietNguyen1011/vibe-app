@@ -1,0 +1,21 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+backend/.venv/
+
+# node
+node_modules/
+frontend/dist/
+
+# misc
+.DS_Store
+*.log
+.env
+*.tsbuildinfo
+.playwright-mcp/
+test-results/
+
+# NOTE: docs/videos/*.webm|mp4 and docs/screenshots/*.png are intentionally
+# committed — they're the demo artifacts referenced for reviewers.

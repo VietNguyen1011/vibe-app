@@ -15,9 +15,9 @@ The full platform design is in **[DESIGN.md](./DESIGN.md)** (Deliverable 1).
 
 ### Screenshots
 
-| Dev SSO sign-in | Employee — connect | Employee — detected (real scan) |
+| Dev SSO sign-in | Connect GitHub → pick a repo (private incl.) | Employee — detected (real scan) |
 |---|---|---|
-| ![login](docs/screenshots/01-login.png) | ![connect](docs/screenshots/02-employee-connect.png) | ![details](docs/screenshots/03-employee-details.png) |
+| ![login](docs/screenshots/01-login.png) | ![github](docs/screenshots/08-github-connect.png) | ![details](docs/screenshots/03-employee-details.png) |
 
 | Safety check | Done — peek at artifacts | Admin — generated artifacts |
 |---|---|---|
@@ -44,7 +44,8 @@ optionD/
 │   │   ├── settings.py     pydantic-settings (env-overridable, VIBEAPP_* prefix)
 │   │   ├── config.py       Platform invariants (account, region, bucket, thresholds)
 │   │   ├── catalog.py      Bedrock model allowlist
-│   │   ├── scanner.py      Repo scan — real, read-only GitHub API (runtime/framework/secrets) + slugify
+│   │   ├── scanner.py      Public repo scan — read-only GitHub API (runtime/framework/secrets)
+│   │   ├── github.py       GitHub App seam — Fake (dev) / Real (installation token) clients
 │   │   ├── manifest.py     vibeapp.yaml — single source of truth
 │   │   ├── artifacts.py    The 4 artifacts (← the heart of Option D)
 │   │   ├── validation.py   The submission gate
@@ -54,9 +55,9 @@ optionD/
 │   │   ├── store.py        In-memory store behind StoreProtocol (DI-injected)
 │   │   ├── deps.py         FastAPI dependencies (get_store)
 │   │   ├── service.py      input → submission → {manifest, artifacts, validation, cost}
-│   │   ├── routers/        health · auth · catalog · submissions
+│   │   ├── routers/        health · auth · catalog · github · submissions
 │   │   └── main.py         App factory + lifespan
-│   └── tests/       57 tests, 100% coverage — least-privilege, validation, lifecycle, RBAC, errors, settings, scanner
+│   └── tests/       66 tests, 100% coverage — least-privilege, validation, lifecycle, RBAC, errors, settings, scanner, GitHub App
 └── frontend/        React + Vite + TypeScript (strict) — pixel-faithful vibeapp UI
     └── src/
         ├── types.ts            API model types (mirror backend schemas)
@@ -66,7 +67,7 @@ optionD/
         ├── employee/           Friendly 4-step wizard
         ├── admin/              Platform-admin console (declarative polling)
         ├── components/         Icons, code block, steps, tweaks panel
-        └── test/               31 Vitest tests (99.3% cov) — flows, hooks, components
+        └── test/               33 Vitest tests (~98% cov) — flows, hooks, components
     └── e2e/                Playwright — demo recorder + screenshot capture
 ```
 
@@ -129,32 +130,38 @@ docker compose up --build
 (employee) or **Priya Nair** (platform admin). The admin sees the review queue and
 the `View as` switch; an employee sees only the submit wizard.
 
-**Try the full loop:** sign in as Maya → paste/pick a repo → *Scan* → fill the
-friendly form → *Run safety check* → *Submit*. Sign out, sign in as Priya → the
-app is in the queue → open **Artifacts** to see the generated IAM/deploy/secrets
-files → **Approve & provision** → watch it flip `provisioning → live`.
+**Try the full loop:** sign in as Maya → **Connect GitHub** → pick a repo (private
+ones included) → fill the friendly form → *Run safety check* → *Submit*. Sign out,
+sign in as Priya → the app is in the queue → open **Artifacts** → **Approve &
+provision** → watch it flip `provisioning → live`.
+
+> **GitHub connect is mockable.** With no credentials, a `FakeGitHubClient` simulates
+> the authorize→install→read loop entirely offline (the screenshot above). Set
+> `VIBEAPP_GITHUB_APP_ID` + private key + client secret to swap in the real GitHub App
+> (installation token → private repo contents) with zero caller changes. There's still
+> an "or paste a public URL" fallback.
 
 ---
 
 ## Testing & coverage
 
 ```bash
-cd backend  && uv run pytest --cov=app   # 57 tests
-cd frontend && npm run coverage          # 31 tests (vitest + RTL)
+cd backend  && uv run pytest --cov=app   # 66 tests, 100%
+cd frontend && npm run coverage          # 33 tests (vitest + RTL)
 ```
 
 | Layer | Tests | Coverage (statements) |
 |---|---|---|
-| **Backend** (FastAPI) | 57 | **100%** |
-| **Frontend** (React/TS) | 31 | **99.3%** |
+| **Backend** (FastAPI) | 66 | **100%** |
+| **Frontend** (React/TS) | 33 | **~98%** |
 
 - **Backend is 100%** — that's where the logic and security invariants live. Tests
   pin least-privilege scoping (incl. an adversarial app-name that must not escape its
   prefix), validation gating, the approve→provision→live lifecycle, RBAC, the error
   envelope, settings overrides, and the real scanner (GitHub layer mocked — no network
   in tests).
-- **Frontend is 99.3%** — full employee wizard + admin console flows driven through
-  TanStack Query with a mocked API, plus component/hook unit tests. The remaining
+- **Frontend is ~98%** — full employee wizard + admin console + GitHub-connect flows
+  driven through TanStack Query with a mocked API, plus component/hook unit tests. The remaining
   fraction is defensive `catch` blocks and an SSR/no-`localStorage` fallback branch I
   chose not to force-cover artificially. End-to-end is additionally verified in a real
   browser via Playwright (`frontend/e2e/`).

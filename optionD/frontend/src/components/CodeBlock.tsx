@@ -10,12 +10,12 @@ export function highlight(code: string, lang: Lang | string): string {
   if (lang === "json") {
     return esc(code).replace(
       /("(?:[^"\\]|\\.)*")(\s*:)|("(?:[^"\\]|\\.)*")|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g,
-      (m, key, colon, str, bool, num) => {
+      (_m, key, colon, str, bool, num) => {
         if (key !== undefined) return w("tok-key", key) + colon;
         if (str !== undefined) return w("tok-str", str);
         if (bool !== undefined) return w("tok-num", bool);
-        if (num !== undefined) return w("tok-num", num);
-        return m;
+        // The regex guarantees exactly one group per match; only `num` remains.
+        return w("tok-num", num);
       }
     );
   }

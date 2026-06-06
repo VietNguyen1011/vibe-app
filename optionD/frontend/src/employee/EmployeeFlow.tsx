@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { Steps, BigCheck } from "../components/Misc";
-import { CodeBlock } from "../components/CodeBlock";
-import { useCreateSubmission, useScan, useValidate } from "../api/queries";
+import {
+  useCreateSubmission,
+  useDisconnectGithub,
+  useGithubConnect,
+  useGithubRepos,
+  useGithubStatus,
+  useScan,
+  useValidate,
+} from "../api/queries";
 import type {
   CostProjection,
   ModelOption,
   RepoScan,
+  ScanArg,
   SecretSlot,
   SubmissionDetail,
   SubmissionInput,
@@ -16,11 +24,6 @@ import type {
 } from "../types";
 
 const TEAMS = ["trust-intel", "research", "adversarial", "product", "marketing", "data"];
-const EXAMPLE_REPOS = [
-  "github.com/alice-internal/claims-triage",
-  "github.com/alice-internal/standup-summarizer",
-  "github.com/alice-internal/vendor-risk-bot",
-];
 
 function humanize(slug: string): string {
   return (slug || "").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -48,7 +51,6 @@ export function EmployeeFlow({ t, user, models, onSubmit }: EmployeeFlowProps) {
   const [checks, setChecks] = useState<ValidationCheck[]>([]);
   const [cost, setCost] = useState<CostProjection | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
-  const [peek, setPeek] = useState(false);
 
   const scan = useScan();
   const validate = useValidate();
@@ -82,12 +84,12 @@ export function EmployeeFlow({ t, user, models, onSubmit }: EmployeeFlowProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, modelId, budget, appName, description, team]);
 
-  async function doScan() {
-    if (!repoUrl.trim()) return;
+  async function runScan(arg: ScanArg) {
     setScanError("");
     try {
-      const r = await scan.mutateAsync(repoUrl);
+      const r = await scan.mutateAsync(arg);
       setRepo(r);
+      setRepoUrl(r.url);
       setAppName(humanize(r.name));
       setDescription("");
       setSecrets(
@@ -131,7 +133,6 @@ export function EmployeeFlow({ t, user, models, onSubmit }: EmployeeFlowProps) {
     setSecrets([]);
     setModelId("sonnet");
     setBudget(200);
-    setPeek(false);
     setDetail(null);
   }
 
@@ -143,9 +144,7 @@ export function EmployeeFlow({ t, user, models, onSubmit }: EmployeeFlowProps) {
         </div>
       )}
 
-      {step === 0 && (
-        <StepConnect repoUrl={repoUrl} setRepoUrl={setRepoUrl} scanning={scan.isPending} scanError={scanError} doScan={doScan} />
-      )}
+      {step === 0 && <StepConnect onScan={runScan} scanning={scan.isPending} scanError={scanError} />}
       {step === 1 && repo && (
         <StepDetails
           t={t}
@@ -172,20 +171,31 @@ export function EmployeeFlow({ t, user, models, onSubmit }: EmployeeFlowProps) {
       {step === 2 && (
         <StepSafety checking={validate.isPending} checks={checks} onBack={() => setStep(1)} onSubmit={submit} submitting={create.isPending} />
       )}
-      {step === 3 && detail && <StepDone t={t} detail={detail} peek={peek} setPeek={setPeek} onReset={reset} />}
+      {step === 3 && detail && <StepDone detail={detail} onReset={reset} />}
     </div>
   );
 }
 
-/* ---------- Step 0: Connect ---------- */
+/* ---------- Step 0: Connect (GitHub App flow) ---------- */
 interface StepConnectProps {
-  repoUrl: string;
-  setRepoUrl: (v: string) => void;
+  onScan: (arg: ScanArg) => void;
   scanning: boolean;
   scanError: string;
-  doScan: () => void;
 }
-function StepConnect({ repoUrl, setRepoUrl, scanning, scanError, doScan }: StepConnectProps) {
+function StepConnect({ onScan, scanning, scanError }: StepConnectProps) {
+  const { data: status } = useGithubStatus();
+  const connected = !!status?.connected;
+  const { data: repos = [] } = useGithubRepos(connected);
+  const connect = useGithubConnect();
+  const disconnect = useDisconnectGithub();
+  const [showPaste, setShowPaste] = useState(false);
+  const [repoUrl, setRepoUrl] = useState("");
+
+  async function startConnect() {
+    const { authorizeUrl } = await connect.mutateAsync();
+    window.location.href = authorizeUrl; // → GitHub (or the fake callback) → back to the SPA
+  }
+
   return (
     <div className="rise">
       <div style={{ textAlign: "center", marginBottom: 28 }}>
@@ -197,45 +207,79 @@ function StepConnect({ repoUrl, setRepoUrl, scanning, scanError, doScan }: StepC
           Let's get your app live.
         </h1>
         <p style={{ color: "var(--muted)", fontSize: 17, marginTop: 12, maxWidth: 480, marginInline: "auto", textWrap: "pretty" }}>
-          Point us at the repo Claude Code made for you. We'll take a look and set everything up safely — nothing goes live until you say so.
+          Connect GitHub and pick the repo Claude Code made for you — private repos included. We only read it, and nothing goes live until you say so.
         </p>
       </div>
 
       <div className="card" style={{ padding: "var(--pad)", position: "relative", overflow: "hidden" }}>
         {scanning && <ScanOverlay />}
-        <label className="field-label" htmlFor="repo-url">Your GitHub repo</label>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "1 1 280px" }}>
-            <Icon name="github" size={19} style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "var(--muted)" }} />
-            <input
-              id="repo-url"
-              className="input input-mono"
-              style={{ paddingLeft: 44 }}
-              placeholder="github.com/alice-internal/my-app"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && doScan()}
-              aria-describedby="repo-help"
-            />
+
+        {!connected ? (
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <button className="btn btn-primary" onClick={startConnect} disabled={connect.isPending} style={{ minWidth: 240 }}>
+              <Icon name="github" size={19} /> Connect GitHub
+            </button>
+            <p className="field-help" style={{ textAlign: "center", marginTop: 12 }}>
+              You'll authorize the vibeapp GitHub App. It gets read-only access to just the repos you choose.
+            </p>
           </div>
-          <button className="btn btn-primary" onClick={doScan} disabled={!repoUrl.trim() || scanning}>
-            <Icon name="search" size={18} /> Scan my repo
-          </button>
-        </div>
-        <p className="field-help" id="repo-help">We only read your code to understand what it needs. We never run it here.</p>
+        ) : (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              <span className="chip chip-ok"><Icon name="check" size={13} /> Connected as {status?.account}</span>
+              <div style={{ flex: 1 }} />
+              <button className="btn btn-quiet btn-sm" onClick={() => disconnect.mutate()}>Disconnect</button>
+            </div>
+            <label className="field-label">Pick a repo</label>
+            <div style={{ display: "grid", gap: 8 }} role="list" aria-label="Your repositories">
+              {repos.map((r) => (
+                <button
+                  key={r.fullName}
+                  onClick={() => onScan({ repoFullName: r.fullName })}
+                  disabled={scanning}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 11, padding: "12px 14px", textAlign: "left",
+                    border: "var(--hair) solid var(--border-strong)", borderRadius: "var(--radius-sm)",
+                    background: "var(--surface-2)", cursor: "pointer",
+                  }}
+                >
+                  <Icon name="github" size={17} style={{ color: "var(--muted)" }} />
+                  <span style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 600 }}>{r.fullName}</span>
+                  {r.private && <span className="chip" style={{ fontSize: 11, padding: "3px 9px" }}><Icon name="lock" size={12} /> private</span>}
+                  <Icon name="arrowRight" size={16} style={{ color: "var(--muted)" }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {scanError && (
-          <p role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
+          <p role="alert" style={{ color: "var(--danger)", fontSize: 13, marginTop: 12, display: "flex", gap: 6, alignItems: "center" }}>
             <Icon name="alert" size={15} /> {scanError}
           </p>
         )}
 
-        <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, color: "var(--faint)", whiteSpace: "nowrap" }}>Try one:</span>
-          {EXAMPLE_REPOS.map((r) => (
-            <button key={r} className="chip" style={{ cursor: "pointer" }} onClick={() => setRepoUrl(r)}>
-              <Icon name="box" size={13} /> {r.split("/").pop()}
-            </button>
-          ))}
+        {/* Fallback: paste a public URL */}
+        <div style={{ marginTop: 18, borderTop: "var(--hair) solid var(--border)", paddingTop: 14 }}>
+          <button className="btn btn-quiet btn-sm" onClick={() => setShowPaste((v) => !v)} aria-expanded={showPaste}>
+            <Icon name="chevronDown" size={14} style={{ transform: showPaste ? "rotate(180deg)" : "none", transition: ".2s" }} /> or paste a public URL instead
+          </button>
+          {showPaste && (
+            <div className="rise" style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+              <input
+                className="input input-mono"
+                style={{ flex: "1 1 280px" }}
+                placeholder="github.com/owner/repo"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && repoUrl.trim() && onScan({ repoUrl })}
+                aria-label="Public repository URL"
+              />
+              <button className="btn btn-ghost" onClick={() => onScan({ repoUrl })} disabled={!repoUrl.trim() || scanning}>
+                <Icon name="search" size={17} /> Scan
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -520,18 +564,15 @@ function StepSafety({ checking, checks, onBack, onSubmit, submitting }: StepSafe
 
 /* ---------- Step 3: Done ---------- */
 interface StepDoneProps {
-  t: Tweaks;
   detail: SubmissionDetail;
-  peek: boolean;
-  setPeek: (v: boolean) => void;
   onReset: () => void;
 }
-function StepDone({ t, detail, peek, setPeek, onReset }: StepDoneProps) {
-  const { submission, artifacts } = detail;
+function StepDone({ detail, onReset }: StepDoneProps) {
+  const { submission } = detail;
   const timeline: Array<[Parameters<typeof Icon>[0]["name"], string, string, string]> = [
     ["check", "Submitted", "Your app and its safety setup are packaged.", "done"],
     ["user", "Platform team gives it a look", "A quick human check — most clear within the hour.", "active"],
-    ["rocket", "Live URL lands in your inbox", `${submission.slug}.apps.alice.io`, "todo"],
+    ["rocket", "Live URL lands in your inbox", `${submission.slug}.apps.internal`, "todo"],
   ];
   return (
     <div className="rise" style={{ textAlign: "center" }}>
@@ -560,27 +601,25 @@ function StepDone({ t, detail, peek, setPeek, onReset }: StepDoneProps) {
         ))}
       </div>
 
-      {t.showPeek && (
-        <div style={{ marginTop: 16, textAlign: "left" }}>
-          <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "space-between" }} onClick={() => setPeek(!peek)} aria-expanded={peek}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 9 }}>
-              <Icon name="eye" size={18} /> Peek under the hood <span style={{ color: "var(--muted)", fontWeight: 500, fontSize: 13 }}>— for the curious</span>
-            </span>
-            <Icon name="chevronDown" size={18} style={{ transform: peek ? "rotate(180deg)" : "none", transition: ".2s" }} />
-          </button>
-          {peek && (
-            <div className="rise" style={{ marginTop: 14, display: "grid", gap: 14 }}>
-              <p style={{ color: "var(--muted)", fontSize: 13.5 }}>You never have to touch these — but here's exactly what we generated for the platform team. Least-privilege by default.</p>
-              {artifacts.map((a) => (
-                <div key={a.file}>
-                  <CodeBlock file={a.file} lang={a.lang} body={a.body} />
-                  <p style={{ color: "var(--faint)", fontSize: 12.5, margin: "6px 2px 0" }}>{a.note}</p>
-                </div>
-              ))}
+      <div className="card" style={{ marginTop: 16, padding: "var(--pad)", textAlign: "left" }}>
+        <div className="mono-label" style={{ color: "var(--accent)" }}>What we handled for you</div>
+        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+          {([
+            ["box", "Private space just for your app", "Your own isolated storage, secrets, and identity."],
+            ["dollar", `$${submission.budget}/mo spending cap`, "We pause and email you before it goes over."],
+            ["shield", "Security guardrails on", "Prompt-injection shield and personal-info scanning by default."],
+            ["lock", "Reachable only inside Alice", "No public internet — staff behind SSO only."],
+          ] as Array<[Parameters<typeof Icon>[0]["name"], string, string]>).map(([ic, title, sub]) => (
+            <div key={title} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", flex: "none", background: "var(--accent-wash)", color: "var(--accent)", display: "grid", placeItems: "center" }}><Icon name={ic} size={16} /></span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
+                <div style={{ color: "var(--muted)", fontSize: 12.5 }}>{sub}</div>
+              </div>
             </div>
-          )}
+          ))}
         </div>
-      )}
+      </div>
 
       <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 26 }}>
         <button className="btn btn-ghost" onClick={onReset}><Icon name="plus" size={17} /> Submit another app</button>

@@ -26,8 +26,26 @@ describe("highlight", () => {
     expect(out).toContain('class="tok-comment"');
   });
 
+  it("passes through yaml lines that aren't key: value pairs", () => {
+    const out = highlight("- just a list item\nplainline", "yaml");
+    expect(balanced(out)).toBe(true);
+    expect(out).toContain("plainline");
+  });
+
   it("produces well-formed spans for bash", () => {
     const out = highlight('#!/bin/bash\nfor KEY in a b; do\n  echo "$KEY"\ndone', "bash");
     expect(balanced(out)).toBe(true);
+  });
+
+  it("highlights json literals (true/false/null) and numbers", () => {
+    const out = highlight('{"a": true, "b": false, "c": null, "n": -2.5}', "json");
+    expect(balanced(out)).toBe(true);
+    expect(out).toContain('class="tok-num"'); // bool + number branches
+  });
+
+  it("escapes an unknown language verbatim (no tokens)", () => {
+    const out = highlight("plain <text> & more", "text");
+    expect(out).toBe("plain &lt;text&gt; &amp; more");
+    expect(out).not.toContain("<span");
   });
 });

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 from app.catalog import model_by_id
+from app.compute import task_size
 from app.config import (
     APPS_BUCKET,
     HUMAN_IN_LOOP_BUDGET_USD,
@@ -23,6 +24,7 @@ def _bare_repo(repo_url: str) -> str:
 
 def build_manifest(sub: Submission) -> dict:
     model = model_by_id(sub.model_id)
+    size = task_size(sub.repo.runtime)
     return {
         "apiVersion": "vibeapp.alice.io/v1",
         "kind": "AppDeployment",
@@ -38,11 +40,16 @@ def build_manifest(sub: Submission) -> dict:
             "commit": sub.repo.commit,
         },
         "runtime": {
-            "type": "apprunner",
+            "type": "ecs-fargate",
             "framework": sub.repo.framework,
             "port": sub.repo.port,
-            "cpu": "1 vCPU",
-            "memory": "2 GB",
+            "cpu": size["cpu"],
+            "memory": size["memory"],
+        },
+        "network": {
+            "ingress": "private",
+            "egressAllowlist": ["egress-proxy", "ai-gateway", "rds-proxy"],
+            "internetGatewayRoute": False,
         },
         "guardrails": {
             "modelAllowlist": [model.model_id],

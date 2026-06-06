@@ -227,7 +227,7 @@ function AdminDetail({ sel, detail, models, tab, setTab, onApprove, onPatch }: A
           </>
         )}
         {sel.status === "provisioning" && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 12, fontWeight: 650 }}><span className="spinner" /> Provisioning on AWS App Runner…</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 12, fontWeight: 650 }}><span className="spinner" /> Provisioning on AWS ECS Fargate…</span>
         )}
         {sel.status === "live" && (
           <>
@@ -257,6 +257,7 @@ function TabSummary({ sel, model, cost }: { sel: Submission; model: ModelOption;
     ["database", "S3 prefix", `s3://${APPS_BUCKET}/${sel.slug}/* — isolated from every other app`],
     ["lock", "Secrets namespace", `apps/${sel.slug}/* — ${sel.secrets.length} keys`],
     ["brain", "Bedrock allowlist", `${model.label} only`],
+    ["shield", "Network", "per-app SG · internal ALB · egress allowlist (no internet-gateway route)"],
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 28 }} className="lp-2col">
@@ -298,7 +299,7 @@ function TabSummary({ sel, model, cost }: { sel: Submission; model: ModelOption;
       </div>
       <div>
         <KV k="App id" v={sel.slug} mono />
-        <KV k="Runtime" v={`${sel.repo.framework} · AWS App Runner`} />
+        <KV k="Runtime" v={`${sel.repo.framework} · AWS ECS Fargate`} />
         <KV k="Model (Bedrock)" v={model.modelId} mono />
         <KV k="Monthly budget" v={`$${sel.budget}`} mono />
         <KV k="Projected spend" v={cost ? `~$${cost.monthly}/mo · ${cost.callsPerDay} calls/day` : "—"} mono />

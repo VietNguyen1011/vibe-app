@@ -26,12 +26,14 @@ try {
   // ---- Connect: type a REAL public repo and scan it (live GitHub read) ----
   await page.getByText("Let's get your app live.").waitFor();
   await pause(page, 700);
-  await page.locator("#repo-url").pressSequentially(
+  await page.getByRole("button", { name: /or paste a public URL instead/ }).click();
+  await pause(page, 400);
+  await page.getByRole("textbox", { name: "Public repository URL" }).pressSequentially(
     "https://github.com/mdn/beginner-html-site-styled",
     { delay: 18 }
   );
   await pause(page, 500);
-  await page.getByRole("button", { name: /Scan my repo/ }).click();
+  await page.getByRole("button", { name: /^Scan$/ }).click();
 
   // ---- Details: detection comes from the real repo (Static site / index.html) ----
   await page.getByText("Here's what we found.").waitFor({ timeout: 15000 });
@@ -53,8 +55,8 @@ try {
   // ---- Done + peek under the hood ----
   await page.getByText("You're all set!").waitFor({ timeout: 8000 });
   await pause(page, 900);
-  await page.getByRole("button", { name: /Peek under the hood/ }).click();
-  await pause(page, 1500);
+  await page.getByText(/What we handled for you/i).waitFor({ timeout: 4000 });
+  await pause(page, 1600); // let the plain-language summary read
 
   // ---- Sign out, sign in as the platform admin (Priya) ----
   await page.getByRole("button", { name: /Sign out/ }).click();

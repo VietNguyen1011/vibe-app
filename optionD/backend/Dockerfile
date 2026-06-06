@@ -14,7 +14,7 @@ COPY app ./app
 RUN uv sync --frozen --no-dev
 
 # Run as non-root.
-RUN useradd -m appuser
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
