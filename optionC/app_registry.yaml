@@ -1,0 +1,29 @@
+apps:
+  marketing-tool:
+    allowed_models:
+      - claude-3-5-haiku-20241022
+    budget:
+      daily_token_limit: 100000
+      daily_cost_limit_usd: 5.00
+    pii_action: block          # block | redact | warn
+
+  analyst-report:
+    allowed_models:
+      - claude-3-5-sonnet-20241022
+      - claude-3-5-haiku-20241022
+    budget:
+      daily_token_limit: 500000
+      daily_cost_limit_usd: 25.00
+    pii_action: redact         # silently redact PII and continue
+
+  # Self-hosted via Ollama — token cost is $0, so cost limit is effectively disabled
+  ollama-dev:
+    allowed_models:
+      - qwen2.5-coder
+      - qwen2.5-coder:7b
+      - qwen2.5-coder:14b
+      - qwen2.5-coder:32b
+    budget:
+      daily_token_limit: 2000000
+      daily_cost_limit_usd: 999.00
+    pii_action: block

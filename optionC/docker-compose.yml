@@ -1,0 +1,45 @@
+services:
+  guardrails:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      LLM_BACKEND: ${LLM_BACKEND:-ollama}
+      # Docker Desktop (Win/Mac): host.docker.internal resolves automatically.
+      # Linux: the extra_hosts entry below maps it to the host gateway.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      PII_BACKEND: ${PII_BACKEND:-regex}
+      AUDIT_BACKEND: ${AUDIT_BACKEND:-jsonl}
+      AUDIT_LOG_PATH: /data/audit.jsonl
+      BUDGET_DB_PATH: /data/budget.db
+      APP_REGISTRY_PATH: /app/app_registry.yaml
+      # Set ANTHROPIC_API_KEY here if using LLM_BACKEND=anthropic
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - guardrails_data:/data
+    # Needed on Linux so host.docker.internal resolves to the Docker host.
+    # No-op on Docker Desktop (Windows/Mac).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  toy_app:
+    build: .
+    command: uvicorn toy_app.main:app --host 0.0.0.0 --port 8081
+    ports:
+      - "8081:8081"
+    environment:
+      GUARDRAILS_URL: http://guardrails:8080
+    depends_on:
+      guardrails:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  guardrails_data:

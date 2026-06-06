@@ -1,0 +1,25 @@
+apps:
+  marketing-tool:
+    allowed_models:
+      - claude-3-5-haiku-20241022
+    budget:
+      daily_token_limit: 100000
+      daily_cost_limit_usd: 5.00
+    pii_action: block
+
+  analyst-report:
+    allowed_models:
+      - claude-3-5-sonnet-20241022
+      - claude-3-5-haiku-20241022
+    budget:
+      daily_token_limit: 500000
+      daily_cost_limit_usd: 25.00
+    pii_action: redact
+
+  tight-budget-app:
+    allowed_models:
+      - claude-3-5-haiku-20241022
+    budget:
+      daily_token_limit: 70       # mock uses 80 tokens/call: 1st call OK (0<70), 2nd blocked (80>=70)
+      daily_cost_limit_usd: 999.00
+    pii_action: block

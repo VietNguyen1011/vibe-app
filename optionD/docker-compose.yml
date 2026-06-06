@@ -1,0 +1,23 @@
+# vibeapp — full stack. `docker compose up --build` then open http://localhost:8080
+services:
+  backend:
+    build: ./backend
+    environment:
+      # In a container the browser hits nginx, which proxies same-origin /api,
+      # so CORS isn't strictly needed — kept for direct API access in dev.
+      VIBEAPP_CORS_ORIGINS: '["http://localhost:8080"]'
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
