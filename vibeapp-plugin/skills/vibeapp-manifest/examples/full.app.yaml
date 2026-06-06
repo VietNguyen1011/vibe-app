@@ -1,0 +1,28 @@
+apiVersion: vibeapp/v1
+kind: App
+metadata:
+  name: expense-tracker
+  owner: minha@alice.io
+  description: "Track team expenses"
+spec:
+  stack: react-ts
+  shape: web-api
+  resources:
+    database: true
+    storage: true
+    queue: false
+  ai:
+    enabled: true
+    models:
+      - anthropic.claude-sonnet-4-6
+      - anthropic.claude-haiku-4-5
+    budget:
+      monthlyUsd: 200
+  network:
+    egress:
+      - api.stripe.com
+  guardrails:
+    pii: redact
+    guardedActions:
+      - send-email
+  isolation: shared

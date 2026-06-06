@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>VibeApp</title></head>
+<body>
+  <h1>Hello from VibeApp</h1>
+  <pre id="out">loading…</pre>
+  <script>
+    fetch('/api/hello')
+      .then((r) => r.json())
+      .then((d) => { document.getElementById('out').textContent = JSON.stringify(d, null, 2); });
+  </script>
+</body>
+</html>

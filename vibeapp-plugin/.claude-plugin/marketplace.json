@@ -1,0 +1,12 @@
+{
+  "name": "vibeapp-marketplace",
+  "owner": { "name": "ALICE Platform / AI Infra", "email": "minha@alice.io" },
+  "plugins": [
+    {
+      "name": "vibeapp",
+      "source": "./",
+      "description": "Vibe-code platform-compatible internal apps for the VibeApp Portal. Skill-driven: ask to build an app and the golden-path pipeline takes over.",
+      "version": "0.1.0"
+    }
+  ]
+}

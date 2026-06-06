@@ -1,0 +1,7 @@
+{
+  "name": "vibeapp",
+  "version": "0.1.0",
+  "description": "Vibe-code platform-compatible internal apps for the VibeApp Portal. Skill-driven: ask to build an app and the golden-path pipeline takes over.",
+  "author": { "name": "ALICE Platform / AI Infra" },
+  "license": "MIT"
+}

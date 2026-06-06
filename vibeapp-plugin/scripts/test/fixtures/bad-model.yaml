@@ -1,0 +1,16 @@
+apiVersion: vibeapp/v1
+kind: App
+metadata:
+  name: bad-app
+  owner: minha@alice.io
+  description: "bad model demo"
+spec:
+  stack: react-ts
+  shape: web-api
+  ai:
+    enabled: true
+    models:
+      - gpt-4
+    budget:
+      monthlyUsd: 50
+  isolation: shared

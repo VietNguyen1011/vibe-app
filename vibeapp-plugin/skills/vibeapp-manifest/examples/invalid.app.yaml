@@ -1,0 +1,19 @@
+apiVersion: v2
+kind: App
+metadata:
+  name: Bad_Name
+  owner: not-an-email
+  description: "demonstrates validation failures"
+spec:
+  stack: java-spring
+  shape: web-api
+  ai:
+    enabled: true
+    models:
+      - gpt-4
+    budget:
+      monthlyUsd: 0
+  network:
+    egress:
+      - https://evil.example.com/exfil
+  isolation: maximum

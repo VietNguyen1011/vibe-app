@@ -1,0 +1,12 @@
+apiVersion: vibeapp/v1
+kind: App
+metadata:
+  name: hello-board
+  owner: minha@alice.io
+  description: "A simple shared message board"
+spec:
+  stack: static-html
+  shape: web-api
+  ai:
+    enabled: false
+  isolation: shared
