@@ -131,6 +131,8 @@ Used as the primary co-engineer for all three deliverables. Responsibilities: re
 - Repetition within an established pattern — once the `ABC + local impl + AWS stub` structure was decided, Claude Code was fast at generating consistent variations across modules.
 - Test fixture scaffolding — the `autouse` singleton-reset pattern in `conftest.py` and the TanStack Query mock harness in the frontend took minutes instead of hours.
 - Diagnosing subtle bugs quickly: the SQLite `:memory:` isolation issue (each `connect()` creates a separate DB) and the PII offset drift when scanning concatenated message text.
+- Enforcing coding standards via the **VibeApp Claude Code plugin** (superpowers) — project-level rules (`CLAUDE.md`, `.cursor/rules/`) were loaded as context so every generation followed platform conventions (secrets from env, LLM via AI Gateway, guarded actions) without re-prompting each session.
+- Browser-level testing via **Playwright MCP** — connected Claude Code to a live browser instance so it could drive the full employee→admin flow, assert UI state, and capture screenshots as evidence, all within the same agentic session that wrote the code.
 
 **Where I directed or overrode:**
 
@@ -145,9 +147,3 @@ Used as the primary co-engineer for all three deliverables. Responsibilities: re
 - **Identity from the session, not the request body (Option D).** When SSO was added, the easy path was to keep trusting `ownerEmail` from the form. I overrode that so owner = authenticated user and gated admin actions by role.
 
 - **`# PRODUCTION:` comments on AWS stubs (Option C).** The first version raised `NotImplementedError`. I asked for inline comments showing the exact boto3 call that would replace each stub, so the code teaches the production path rather than just marking it absent.
-
-### Cursor
-
-Used for a focused frontend session — the Claude Design visual system (typography, tokens, theming), high-contrast mode, and accessibility attributes. Cursor's inline diff view is faster than Claude Code for CSS iteration where the feedback loop is "look at it in the browser."
-
-**Where I overrode it:** Cursor suggested extracting every color into a CSS variable. I kept derived values (e.g., `color-mix()` on a token) inline rather than naming every intermediate — naming things that don't have stable identity adds noise, not clarity.
